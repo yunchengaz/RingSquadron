@@ -593,7 +593,8 @@ class Game {
         // Show the game over UI if not visible
         if (!this.gameOverUI.visible) {
             // Determine if this is a victory
-            const isVictory = this.customLevel.isComplete() ||
+            const isVictory = this.victoryAchieved ||
+                this.customLevel.isComplete() ||
                 (this.gameMode.getRules().isCampaign && this.bossDefeated);
 
             // Save high score first
@@ -2309,7 +2310,7 @@ class Game {
                         const engineBounds = ship.getEngineBounds();
                         if (CollisionSystem.checkAABB(bulletBounds, engineBounds)) {
                             bullet.active = false;
-                            const destroyed = ship.takeDamage(bullet.damage, bullet.x, bullet.y);
+                            const destroyed = ship.takeDamage(bullet.damage || 10, bullet.x, bullet.y);
                             if (destroyed) {
                                 this.score += 50;
                                 this.particles.explosion(ship.x, ship.y, 2);
