@@ -87,31 +87,10 @@ export class RedBox {
             return;
         }
 
-        // Natural poise decay towards center (only for Chase Swarm mode)
-        if (cfg.poiseDecayRate && this.poiseValue !== 0) {
-            const decayAmount = cfg.poiseDecayRate * dt;
-            if (this.poiseValue > 0) {
-                this.poiseValue = Math.max(0, this.poiseValue - decayAmount);
-            } else {
-                this.poiseValue = Math.min(0, this.poiseValue + decayAmount);
-            }
-        }
-
-        // Calculate poise-based speed multiplier
+        // Calculate poise-based speed multiplier and check extremes BEFORE decay
         let poiseSpeedMult = 1.0;
         if (cfg.poiseMax) {
-            const normalizedPoise = this.poiseValue / this.poiseMax;  // -1 to +1
-            if (normalizedPoise < 0) {
-                // Negative: lerp from 1.0 to negativeSpeedMult
-                const negMult = cfg.poiseNegativeSpeedMult || 2.5;
-                poiseSpeedMult = 1.0 + (-normalizedPoise) * (negMult - 1.0);
-            } else if (normalizedPoise > 0) {
-                // Positive: lerp from 1.0 to positiveSpeedMult
-                const posMult = cfg.poisePositiveSpeedMult || 0.3;
-                poiseSpeedMult = 1.0 - normalizedPoise * (1.0 - posMult);
-            }
-
-            // Check for reaching extremes
+            // Check for reaching extremes FIRST (before decay reduces the value)
             if (this.poiseValue <= -this.poiseMax && !this.poiseJustTriggeredNegative) {
                 // Full negative: jump up by large margin
                 const jumpAmount = cfg.poiseMaxNegativeJump || 100;
@@ -133,6 +112,28 @@ export class RedBox {
                 this.lastKnockdownTime = this.playTime;  // Track for visual effect
             } else if (this.poiseValue < this.poiseMax * 0.5) {
                 this.poiseJustTriggeredPositive = false;
+            }
+
+            // Calculate speed multiplier based on current poise
+            const normalizedPoise = this.poiseValue / this.poiseMax;  // -1 to +1
+            if (normalizedPoise < 0) {
+                // Negative: lerp from 1.0 to negativeSpeedMult
+                const negMult = cfg.poiseNegativeSpeedMult || 2.5;
+                poiseSpeedMult = 1.0 + (-normalizedPoise) * (negMult - 1.0);
+            } else if (normalizedPoise > 0) {
+                // Positive: lerp from 1.0 to positiveSpeedMult
+                const posMult = cfg.poisePositiveSpeedMult || 0.5;
+                poiseSpeedMult = 1.0 - normalizedPoise * (1.0 - posMult);
+            }
+        }
+
+        // Natural poise decay towards center AFTER checking extremes
+        if (cfg.poiseDecayRate && this.poiseValue !== 0) {
+            const decayAmount = cfg.poiseDecayRate * dt;
+            if (this.poiseValue > 0) {
+                this.poiseValue = Math.max(0, this.poiseValue - decayAmount);
+            } else {
+                this.poiseValue = Math.min(0, this.poiseValue + decayAmount);
             }
         }
 
