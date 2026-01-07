@@ -113,15 +113,22 @@ export class SpawnerSystem {
         }
     }
 
-    // Spawn walls in 1-2 of 3 lanes (never all 3)
+    // Spawn walls in 1-3 of 5 lanes (never all 5)
     spawnWalls(walls, difficulty) {
-        const availableLanes = [0, 1, 2];
+        const laneCount = 5;  // Use 5 lanes for Wall Mode
+        const availableLanes = [0, 1, 2, 3, 4];
 
         // Avoid spawning in the same lanes as last time (for variety)
         const preferredLanes = availableLanes.filter(l => !this.lastWallLanes.includes(l));
 
-        // 40% chance of 2 walls, 60% chance of 1 wall
-        const wallCount = Math.random() > 0.6 ? 2 : 1;
+        // More walls as difficulty increases: 1-3 walls, never all 5 lanes
+        let wallCount = 1;
+        if (difficulty > 5) {
+            wallCount = Math.random() > 0.5 ? 3 : 2;
+        } else if (difficulty > 2) {
+            wallCount = Math.random() > 0.6 ? 2 : 1;
+        }
+
         const selectedLanes = [];
 
         for (let i = 0; i < wallCount; i++) {
@@ -142,9 +149,9 @@ export class SpawnerSystem {
 
         // Create walls in selected lanes with type variety
         selectedLanes.forEach(lane => {
-            const x = Wall.getLaneX(lane);
+            const x = Wall.getLaneX(lane, laneCount);
             const wallType = this.getRandomWallType(difficulty);
-            const wall = new Wall(x, -40, lane, wallType);
+            const wall = new Wall(x, -40, lane, wallType, null, 1.0, laneCount);
             walls.push(wall);
         });
 
@@ -771,7 +778,7 @@ export class SpawnerSystem {
         const x = laneWidth * lane + laneWidth / 2;
 
         const wallType = isGolden ? 'GOLDEN_BOOST' : 'BOOST';
-        const wall = new Wall(x, -40, lane, wallType);
+        const wall = new Wall(x, -40, lane, wallType, null, 1.0, 3);  // 3 lanes for Chase mode
         walls.push(wall);
     }
 
@@ -985,9 +992,10 @@ export class SpawnerSystem {
      * Spawn a hit-counter push wall in specified lane
      */
     spawnPushWall(pushWalls, hitsRequired, lane, widthMultiplier = 1.0) {
-        const laneWidth = this.gameWidth / 3;
+        const laneCount = 3;  // Swarm/Chase Swarm use 3 lanes
+        const laneWidth = this.gameWidth / laneCount;
         const x = laneWidth * lane + laneWidth / 2;
-        const wall = new Wall(x, -40, lane, 'HIT_COUNTER_PUSH', hitsRequired, widthMultiplier);
+        const wall = new Wall(x, -40, lane, 'HIT_COUNTER_PUSH', hitsRequired, widthMultiplier, laneCount);
         pushWalls.push(wall);
     }
 

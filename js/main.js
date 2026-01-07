@@ -102,6 +102,7 @@ class Game {
         this.playTime = 0; // Time spent in current game (seconds)
         this.isNewLevelHighScore = false; // Flag for displaying "NEW HIGH SCORE!"
         this.bossDefeated = false; // Track if boss was defeated this run
+        this.victoryAchieved = false; // Flag to prevent death after victory
 
         // Entities
         this.player = new Player(CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
@@ -137,6 +138,7 @@ class Game {
             hasSpreadShot: false,
             hasRocketLauncher: false
         };
+        this.powerUpSpeedBonus = 0; // Cumulative speed increase from power-ups in Chase Swarm mode
 
         // Timing
         this.lastTime = 0;
@@ -233,6 +235,7 @@ class Game {
         this.gameStartTime = 0;  // Will be set on first frame
         this.isNewLevelHighScore = false;
         this.bossDefeated = false;
+        this.victoryAchieved = false;
         this.player.reset(CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
         this.allies = [];
         this.enemies = [];
@@ -279,6 +282,7 @@ class Game {
             this.multiplierGates = [];
             this.swarmLives = 5;
             this.permanentUpgrades = { wingmen: 0, hasSpreadShot: false, hasRocketLauncher: false };
+            this.powerUpSpeedBonus = 0;
             this.player.health = 1;  // 1 HP, lives system
             this.player.allowVerticalMovement = true;  // Allow full movement in Swarm mode
             // Double fire rate (100% faster shooting)
@@ -289,6 +293,7 @@ class Game {
             this.powerupCrates = [];
             this.pushWalls = [];
             this.multiplierGates = [];
+            this.powerUpSpeedBonus = 0;
             // Reset fire rate to default for non-Swarm modes
             this.player.fireRate = CONFIG.PLAYER_FIRE_RATE;
         }
@@ -305,6 +310,7 @@ class Game {
             this.swarmLives = 5;
             this.redBoxEnemySpeedBoost = 1.0;  // Tracks speed boost from enemies reaching red box
             this.permanentUpgrades = { wingmen: 0, hasSpreadShot: false, hasRocketLauncher: false };
+            this.powerUpSpeedBonus = 0;
             this.player.health = 1;  // 1 HP, lives system
             this.player.allowVerticalMovement = true;
             this.player.allowShipRotation = true;  // Enable ship rotation for Chase Swarm
@@ -433,7 +439,7 @@ class Game {
         const scaledDelta = deltaTime * this.screenFx.getTimeScale();
 
         // Always update stars and screen effects (use player boost speed)
-        const starSpeedMultiplier = this.player ? this.player.getSpeedMultiplier() : 1.0;
+        const starSpeedMultiplier = this.player ? (this.player.getSpeedMultiplier() + this.powerUpSpeedBonus) : 1.0;
         this.renderer.updateStars(scaledDelta, starSpeedMultiplier);
         this.screenFx.update(scaledDelta);
         this.particles.update(scaledDelta);
@@ -587,7 +593,8 @@ class Game {
         // Show the game over UI if not visible
         if (!this.gameOverUI.visible) {
             // Determine if this is a victory
-            const isVictory = this.customLevel.isComplete() ||
+            const isVictory = this.victoryAchieved ||
+                this.customLevel.isComplete() ||
                 (this.gameMode.getRules().isCampaign && this.bossDefeated);
 
             // Save high score first
@@ -694,6 +701,16 @@ class Game {
                 const result = this.editorUI.handleTap(target.x, target.y);
                 if (result === 'exit') {
                     this.exitEditor();
+                } else if (result === 'save_and_play') {
+                    const levelInfo = this.editor.saveAndPlay();
+                    this.audio.playPowerUp();
+                    // Load and start playing the level immediately
+                    if (this.customLevel.loadLevelData(levelInfo.name, levelInfo.data)) {
+                        this.editorUI.hide();
+                        this.reset();
+                        this.state = 'customPlaying';
+                        this.music.startNormalMusic();
+                    }
                 } else if (result === 'save') {
                     this.audio.playPowerUp();
                 } else if (result === 'placed') {
@@ -785,7 +802,7 @@ class Game {
         const dt = Math.min(deltaTime, 50);
 
         // Calculate boosted dt for scrolling entities
-        const speedMultiplier = this.player.getSpeedMultiplier();
+        const speedMultiplier = this.player.getSpeedMultiplier() + this.powerUpSpeedBonus;
         const boostedDt = dt * speedMultiplier;
 
         // Check for pause button tap first
@@ -927,7 +944,7 @@ class Game {
 
         // Calculate boosted dt for scrolling entities (enemies, rings, walls)
         // This makes everything scroll faster when boosted
-        const speedMultiplier = this.player.getSpeedMultiplier();
+        const speedMultiplier = this.player.getSpeedMultiplier() + this.powerUpSpeedBonus;
         const boostedDt = dt * speedMultiplier;
 
         // Check for pause button tap first
@@ -995,8 +1012,8 @@ class Game {
                     this.redBoxSlowdownTimer -= dt;
                 }
 
-                // Check collision with player
-                if (this.redBox.checkPlayerCollision(this.player)) {
+                // Check collision with player - only if not in victory state
+                if (this.redBox.checkPlayerCollision(this.player) && !this.victoryAchieved) {
                     if (!this.playerInvincible && !this.gameMode.isInvincible()) {
                         // Player dies from red box
                         this.player.health = 0;
@@ -1877,7 +1894,7 @@ class Game {
                     this.haptics.light();
 
                     // Show speed multiplier
-                    const speedMult = this.player.getSpeedMultiplier();
+                    const speedMult = this.player.getSpeedMultiplier() + this.powerUpSpeedBonus;
                     this.floatingText.add(this.player.x, this.player.y - 30, `${speedMult.toFixed(1)}x SPEED`, {
                         color: '#88ff88',
                         size: 12,
@@ -2293,7 +2310,7 @@ class Game {
                         const engineBounds = ship.getEngineBounds();
                         if (CollisionSystem.checkAABB(bulletBounds, engineBounds)) {
                             bullet.active = false;
-                            const destroyed = ship.takeDamage(bullet.damage, bullet.x, bullet.y);
+                            const destroyed = ship.takeDamage(bullet.damage || 10, bullet.x, bullet.y);
                             if (destroyed) {
                                 this.score += 50;
                                 this.particles.explosion(ship.x, ship.y, 2);
@@ -2472,8 +2489,8 @@ class Game {
                 }
             }
 
-            // Player vs red box (game over)
-            if (this.redBox && this.redBox.checkPlayerCollision(this.player)) {
+            // Player vs red box (game over) - only if not already achieved victory
+            if (this.redBox && this.redBox.checkPlayerCollision(this.player) && !this.victoryAchieved) {
                 this.player.active = false;
                 this.state = 'gameover';
                 this.particles.explosion(this.player.x, this.player.y, 3);
@@ -2521,7 +2538,7 @@ class Game {
                         duration: 1000
                     });
 
-                    if (this.swarmLives <= 0) {
+                    if (this.swarmLives <= 0 && !this.victoryAchieved) {
                         this.player.active = false;
                         this.state = 'gameover';
                     }
@@ -2530,7 +2547,7 @@ class Game {
 
             // Swarm boss vs player
             for (const boss of this.swarmBosses) {
-                if (CollisionSystem.checkAABB(this.player.getBounds(), boss.getBounds())) {
+                if (CollisionSystem.checkAABB(this.player.getBounds(), boss.getBounds()) && !this.victoryAchieved) {
                     this.player.active = false;
                     this.state = 'gameover';
                     this.particles.explosion(this.player.x, this.player.y, 3);
@@ -2554,7 +2571,7 @@ class Game {
                         duration: 1000
                     });
 
-                    if (this.swarmLives <= 0) {
+                    if (this.swarmLives <= 0 && !this.victoryAchieved) {
                         this.player.active = false;
                         this.state = 'gameover';
                     }
@@ -2886,6 +2903,12 @@ class Game {
                 this.screenFx.flash('#ff3300', 0.3);
                 break;
         }
+
+        // In Chase Swarm mode, increase game speed by 3% for each power-up collected
+        if (this.gameMode.getRules().isChaseSwarm) {
+            this.powerUpSpeedBonus += 0.03;
+        }
+
         this.audio.playPowerUp();
     }
 
@@ -2960,12 +2983,7 @@ class Game {
                 gate.draw(this.renderer);
             }
 
-            // Draw push walls
-            for (const wall of this.pushWalls) {
-                wall.draw(this.renderer);
-            }
-
-            // Draw swarm enemies
+            // Draw swarm enemies (below push walls and powerups)
             for (const enemy of this.swarmEnemies) {
                 enemy.draw(this.renderer);
             }
@@ -2973,6 +2991,11 @@ class Game {
             // Draw swarm bosses
             for (const boss of this.swarmBosses) {
                 boss.draw(this.renderer);
+            }
+
+            // Draw push walls
+            for (const wall of this.pushWalls) {
+                wall.draw(this.renderer);
             }
 
             // Draw powerup crates
@@ -3017,6 +3040,16 @@ class Game {
                 gate.draw(this.renderer);
             }
 
+            // Draw swarm enemies (below push walls and powerups)
+            for (const enemy of this.swarmEnemies) {
+                enemy.draw(this.renderer);
+            }
+
+            // Draw swarm bosses
+            for (const boss of this.swarmBosses) {
+                boss.draw(this.renderer);
+            }
+
             // Draw push walls
             for (const wall of this.pushWalls) {
                 wall.draw(this.renderer);
@@ -3025,16 +3058,6 @@ class Game {
             // Draw powerup crates
             for (const crate of this.powerupCrates) {
                 crate.draw(this.renderer);
-            }
-
-            // Draw swarm enemies
-            for (const enemy of this.swarmEnemies) {
-                enemy.draw(this.renderer);
-            }
-
-            // Draw swarm bosses
-            for (const boss of this.swarmBosses) {
-                boss.draw(this.renderer);
             }
 
             // Draw rocket explosion radius indicators
@@ -3146,6 +3169,7 @@ class Game {
             ctx.font = `bold 16px ${CONFIG.FONT_FAMILY}`;
             ctx.textAlign = 'right';
             ctx.fillText(`LIVES: ${this.swarmLives}`, CONFIG.GAME_WIDTH - 10, 25);
+            ctx.textAlign = 'left'; // Reset to default
         }
 
         // Draw UI overlays
@@ -3196,15 +3220,24 @@ class Game {
 
     // Chase mode victory
     handleVictory() {
+        this.victoryAchieved = true; // Set victory flag to prevent death
         this.state = 'gameover'; // Reuse gameover state but show victory
-        this.audio.playVictory();
+        if (this.audio.playVictory) {
+            this.audio.playVictory();
+        } else {
+            this.audio.playWaveStart(); // Fallback to wave start sound
+        }
         this.screenFx.flash('#00ff00', 1.0);
         this.haptics.heavy();
 
         // Save high score
-        const modeKey = this.gameMode.getCurrentMode();
-        const isNewHigh = this.save.addHighScore(modeKey, this.score, this.currentWave, Math.floor(this.playTime));
-        if (isNewHigh) {
+        const rank = this.save.saveHighScore({
+            score: this.score,
+            wave: this.currentWave,
+            kills: this.kills,
+            gameMode: this.gameMode.currentMode
+        });
+        if (rank > 0 && rank <= 10) {
             this.isNewLevelHighScore = true;
         }
         this.saveProgress();

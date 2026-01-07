@@ -240,19 +240,27 @@ export class EditorUI {
             return 'toggle_vertical';
         }
 
-        // Page navigation buttons
+        // Page navigation buttons (side by side)
         if (y >= 500 && y < 522) {
-            this.pageUp();
-            return 'page_up';
-        }
-        if (y >= 528 && y < 550) {
-            this.pageDown();
-            return 'page_down';
+            const btnWidth = (this.sidebarWidth - 9) / 2;
+            if (x < CONFIG.GAME_WIDTH - this.sidebarWidth + 3 + btnWidth + 1.5) {
+                // Left button (↑ Page Up)
+                this.pageUp();
+                return 'page_up';
+            } else {
+                // Right button (↓ Page Down)
+                this.pageDown();
+                return 'page_down';
+            }
         }
 
-        // Exit button at bottom
-        const exitY = CONFIG.GAME_HEIGHT - this.toolbarHeight - 40;
-        if (y >= exitY && y < exitY + 30) {
+        // Save & Play button
+        if (y >= 552 && y < 580) {
+            return 'save_and_play';
+        }
+
+        // Exit button
+        if (y >= 585 && y < 613) {
             return 'exit';
         }
 
@@ -402,14 +410,14 @@ export class EditorUI {
     }
 
     drawLanes(ctx) {
-        const laneWidth = this.editAreaWidth / 3;
+        const laneWidth = this.editAreaWidth / 5;
         const editHeight = this.editAreaHeight;
 
         ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
         ctx.lineWidth = 2;
         ctx.setLineDash([10, 5]);
 
-        for (let i = 1; i < 3; i++) {
+        for (let i = 1; i < 5; i++) {
             ctx.beginPath();
             ctx.moveTo(laneWidth * i, 0);
             ctx.lineTo(laneWidth * i, editHeight);
@@ -422,9 +430,11 @@ export class EditorUI {
         ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
         ctx.font = `10px ${CONFIG.FONT_FAMILY}`;
         ctx.textAlign = 'center';
-        ctx.fillText('LEFT', laneWidth * 0.5, 15);
-        ctx.fillText('CENTER', laneWidth * 1.5, 15);
-        ctx.fillText('RIGHT', laneWidth * 2.5, 15);
+        ctx.fillText('1', laneWidth * 0.5, 15);
+        ctx.fillText('2', laneWidth * 1.5, 15);
+        ctx.fillText('3', laneWidth * 2.5, 15);
+        ctx.fillText('4', laneWidth * 3.5, 15);
+        ctx.fillText('5', laneWidth * 4.5, 15);
 
         // Orientation labels (flipped Y: top = later, bottom = earlier)
         ctx.fillStyle = 'rgba(100, 200, 100, 0.6)';
@@ -441,7 +451,7 @@ export class EditorUI {
         const wave = this.editor.getCurrentWave();
         const scrollOffset = this.editor.scrollOffset;
         const editHeight = this.editAreaHeight;
-        const laneWidth = this.editAreaWidth / 3;
+        const laneWidth = this.editAreaWidth / 5;
 
         // Clip to edit area
         ctx.save();
@@ -457,7 +467,8 @@ export class EditorUI {
         wave.walls.forEach(w => {
             const x = laneWidth * w.lane + laneWidth / 2;
             const screenY = toScreenY(w.y || 60);
-            const width = laneWidth - 20;
+            const widthMultiplier = w.width || 1.0;
+            const width = (laneWidth - 20) * widthMultiplier;
             const wallType = WALL_TYPES[w.type] || WALL_TYPES.SOLID;
 
             // Only draw if visible
@@ -740,19 +751,23 @@ export class EditorUI {
         const vertColor = this.editor.allowVerticalMovement ? '#44ff88' : '#555555';
         this.drawButton(ctx, x + 3, 470, sw - 6, 20, this.editor.allowVerticalMovement ? '✓Vert' : 'Vert', vertColor);
 
-        // Page navigation buttons
-        this.drawButton(ctx, x + 3, 500, sw - 6, 22, '↑ Page', '#446688');
-        this.drawButton(ctx, x + 3, 528, sw - 6, 22, '↓ Page', '#446688');
+        // Page navigation buttons (side by side)
+        const btnWidth = (sw - 9) / 2;  // Two buttons with 3px gap between
+        this.drawButton(ctx, x + 3, 500, btnWidth, 22, '↑', '#446688');
+        this.drawButton(ctx, x + 3 + btnWidth + 3, 500, btnWidth, 22, '↓', '#446688');
 
         // Current page indicator
         const currentPage = Math.floor(this.editor.scrollOffset / this.pageHeight) + 1;
         const maxPage = Math.ceil(this.editor.maxWaveHeight / this.pageHeight);
         ctx.fillStyle = '#666666';
         ctx.font = `8px ${CONFIG.FONT_FAMILY}`;
-        ctx.fillText(`Page ${currentPage}/${maxPage}`, centerX, 565);
+        ctx.fillText(`Page ${currentPage}/${maxPage}`, centerX, 545);
+
+        // Save & Play button
+        this.drawButton(ctx, x + 3, 552, sw - 6, 28, 'SAVE&PLAY', '#44aa44');
 
         // Exit button
-        this.drawButton(ctx, x + 3, CONFIG.GAME_HEIGHT - this.toolbarHeight - 40, sw - 6, 28, 'EXIT', '#aa3333');
+        this.drawButton(ctx, x + 3, 585, sw - 6, 28, 'EXIT', '#aa3333');
 
         ctx.textAlign = 'left';
     }

@@ -98,8 +98,8 @@ export class Renderer {
     // Draw version number
     drawVersion() {
         this.ctx.save();
-        this.ctx.globalAlpha = 0.4;
-        this.ctx.fillStyle = '#888888';
+        this.ctx.globalAlpha = 0.7;
+        this.ctx.fillStyle = '#cccccc';
         this.ctx.font = `8px ${CONFIG.FONT_FAMILY}`;
         this.ctx.fillText(`v${VERSION}`, 5, 5);
         this.ctx.restore();
@@ -471,8 +471,8 @@ export class Renderer {
         this.ctx.globalAlpha = 1;
 
         // Version number (bottom - more visible on menu)
-        this.ctx.globalAlpha = 0.6;
-        this.drawText(`v${VERSION}`, 10, this.canvas.height - 20, '#888888', 8);
+        this.ctx.globalAlpha = 0.8;
+        this.drawText(`v${VERSION}`, 10, this.canvas.height - 20, '#cccccc', 8);
         this.ctx.globalAlpha = 1;
     }
 

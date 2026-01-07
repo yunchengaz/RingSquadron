@@ -24,23 +24,31 @@ export class EditorSystem {
         // Level settings
         this.chaseMode = false;  // Enable Chase mode (red box)
         this.allowVerticalMovement = false;  // Allow player Y dragging
+        this.swarmMode = false;  // Enable continuous swarm enemy spawning
+        this.ricochetMode = false;  // Bullets bounce off solid walls and screen edges
+        this.fingerUpTurnAround = false;  // Turn around to shoot backwards when finger lifts
 
         // Tool selection
-        this.selectedTool = 'ring';  // 'ring', 'enemy', 'wall', 'gate_x2', 'gate_div', 'erase'
+        this.selectedTool = 'ring';  // 'ring', 'enemy', 'wall', 'gate_x2', 'gate_div', 'crate', 'erase'
         this.selectedEnemyType = 'BASIC';
         this.selectedRingValue = 3;
         this.selectedWallType = 'SOLID';
+        this.selectedWallValue = 15;  // For DESTRUCTIBLE/HIT_COUNTER_PUSH
+        this.selectedWallWidth = 1.0;  // 1.0 = full width, 0.5 = half width
+        this.selectedCrateType = 'wingman';  // 'wingman', 'spread', 'rocket'
+        this.selectedCrateHits = 15;  // Hits required to unlock
 
         // Grid settings
         this.gridSize = 40;
-        this.laneWidth = CONFIG.GAME_WIDTH / 3;
+        this.laneWidth = CONFIG.GAME_WIDTH / 5;
 
         // Scroll/pan settings
         this.scrollOffset = 0;  // How far scrolled down (positive = looking further up the wave)
         this.maxWaveHeight = 2000;  // Maximum spawn height per wave
 
         // Available enemy types for the editor
-        this.enemyTypes = ['BASIC', 'FAST', 'TANK', 'SNIPER', 'BOMBER', 'SWARM', 'SHIELD', 'CARGO_SHIP'];
+        this.enemyTypes = ['BASIC', 'FAST', 'TANK', 'SNIPER', 'BOMBER', 'SWARM', 'SHIELD', 'CARGO_SHIP', 'SWARM_BOSS'];
+        this.selectedBossHealth = 100;  // Custom health for boss enemies
 
         // Available wall types
         this.wallTypes = Object.keys(WALL_TYPES);
@@ -53,11 +61,12 @@ export class EditorSystem {
 
     createEmptyWave() {
         return {
-            delay: 2000,  // Delay before this wave starts (ms)
+            delay: 0,  // Delay before this wave starts (ms) - instant start for custom levels
             rings: [],    // { x: 0-1 normalized, y: spawn Y, value: number, path: string }
             enemies: [],  // { x: 0-1 normalized, y: spawn Y, type: string }
-            walls: [],    // { lane: 0-2, y: spawn Y }
-            gates: []     // { x: 0-1 normalized, y: spawn Y, type: 'multiply' | 'divide' }
+            walls: [],    // { lane: 0-4, y: spawn Y }
+            gates: [],    // { x: 0-1 normalized, y: spawn Y, type: 'multiply' | 'divide' }
+            crates: []    // { x: 0-1 normalized, y: spawn Y, type: 'wingman'|'spread'|'rocket', hits: number }
         };
     }
 
@@ -144,25 +153,38 @@ export class EditorSystem {
                     Math.abs(e.x - normalizedX) < 0.1 && Math.abs(e.y - snappedY) < 30
                 );
                 if (existingEnemy < 0) {
-                    wave.enemies.push({
+                    const enemyData = {
                         x: normalizedX,
                         y: snappedY,
                         type: this.selectedEnemyType
-                    });
+                    };
+                    // Store custom health for bosses
+                    if (this.selectedEnemyType === 'SWARM_BOSS') {
+                        enemyData.health = this.selectedBossHealth;
+                    }
+                    wave.enemies.push(enemyData);
                 }
                 break;
 
             case 'wall':
-                const lane = Math.floor(normalizedX * 3);
+                const lane = Math.floor(normalizedX * 5);
                 // Check if wall already exists at this lane AND Y position
                 const existingWall = wave.walls.findIndex(w =>
                     w.lane === lane && Math.abs(w.y - snappedY) < 30
                 );
                 if (existingWall >= 0) {
-                    // Update existing wall type
+                    // Update existing wall type, value, and width
                     wave.walls[existingWall].type = this.selectedWallType;
+                    wave.walls[existingWall].value = this.selectedWallValue;
+                    wave.walls[existingWall].width = this.selectedWallWidth;
                 } else {
-                    wave.walls.push({ lane, y: snappedY, type: this.selectedWallType });
+                    wave.walls.push({
+                        lane,
+                        y: snappedY,
+                        type: this.selectedWallType,
+                        value: this.selectedWallValue,
+                        width: this.selectedWallWidth
+                    });
                 }
                 break;
 
@@ -180,6 +202,21 @@ export class EditorSystem {
                     y: snappedY,
                     type: 'divide'
                 });
+                break;
+
+            case 'crate':
+                // Check for existing crate at this position
+                const existingCrate = wave.crates.findIndex(c =>
+                    Math.abs(c.x - normalizedX) < 0.1 && Math.abs(c.y - snappedY) < 30
+                );
+                if (existingCrate < 0) {
+                    wave.crates.push({
+                        x: normalizedX,
+                        y: snappedY,
+                        type: this.selectedCrateType,
+                        hits: this.selectedCrateHits
+                    });
+                }
                 break;
 
             case 'erase':
@@ -215,9 +252,14 @@ export class EditorSystem {
         );
 
         // Erase walls by lane AND Y position
-        const lane = Math.floor(normalizedX * 3);
+        const lane = Math.floor(normalizedX * 5);
         wave.walls = wave.walls.filter(w =>
             w.lane !== lane || Math.abs(w.y - worldY) > yTolerance
+        );
+
+        // Erase crates
+        wave.crates = wave.crates.filter(c =>
+            Math.abs(c.x - normalizedX) > tolerance || Math.abs(c.y - worldY) > yTolerance
         );
     }
 
@@ -229,7 +271,16 @@ export class EditorSystem {
 
     // Set ring value for placement
     setRingValue(value) {
-        this.selectedRingValue = Math.max(-20, Math.min(20, value));
+        this.selectedRingValue = Math.max(-9999, Math.min(9999, value));
+    }
+
+    // Set ring value directly (for text input)
+    setRingValueDirect(value) {
+        const numValue = parseInt(value, 10);
+        if (!isNaN(numValue)) {
+            this.setRingValue(numValue);
+            this.isDirty = true;
+        }
     }
 
     incrementRingValue() {
@@ -245,6 +296,23 @@ export class EditorSystem {
         const currentIndex = this.enemyTypes.indexOf(this.selectedEnemyType);
         const newIndex = (currentIndex + direction + this.enemyTypes.length) % this.enemyTypes.length;
         this.selectedEnemyType = this.enemyTypes[newIndex];
+        // Set default health for boss
+        if (this.selectedEnemyType === 'SWARM_BOSS') {
+            this.selectedBossHealth = 100;
+        }
+    }
+
+    // Set boss health
+    setBossHealth(value) {
+        this.selectedBossHealth = Math.max(10, Math.min(9999, value));
+    }
+
+    incrementBossHealth() {
+        this.setBossHealth(this.selectedBossHealth + 10);
+    }
+
+    decrementBossHealth() {
+        this.setBossHealth(this.selectedBossHealth - 10);
     }
 
     // Cycle through wall types
@@ -252,11 +320,56 @@ export class EditorSystem {
         const currentIndex = this.wallTypes.indexOf(this.selectedWallType);
         const newIndex = (currentIndex + direction + this.wallTypes.length) % this.wallTypes.length;
         this.selectedWallType = this.wallTypes[newIndex];
+        // Set default value based on wall type
+        if (this.selectedWallType === 'DESTRUCTIBLE') {
+            this.selectedWallValue = 5;
+        } else if (this.selectedWallType === 'HIT_COUNTER_PUSH') {
+            this.selectedWallValue = 15;
+        }
     }
 
     // Get wall type display info
     getWallTypeInfo() {
         return WALL_TYPES[this.selectedWallType] || WALL_TYPES.SOLID;
+    }
+
+    // Set wall value (for DESTRUCTIBLE and HIT_COUNTER_PUSH)
+    setWallValue(value) {
+        this.selectedWallValue = Math.max(1, Math.min(9999, value));
+    }
+
+    incrementWallValue() {
+        this.setWallValue(this.selectedWallValue + 1);
+    }
+
+    decrementWallValue() {
+        this.setWallValue(this.selectedWallValue - 1);
+    }
+
+    // Toggle wall width (full/half)
+    toggleWallWidth() {
+        this.selectedWallWidth = this.selectedWallWidth === 1.0 ? 0.5 : 1.0;
+    }
+
+    // Cycle through crate types
+    cycleCrateType(direction = 1) {
+        const types = ['wingman', 'spread', 'rocket'];
+        const currentIndex = types.indexOf(this.selectedCrateType);
+        const newIndex = (currentIndex + direction + types.length) % types.length;
+        this.selectedCrateType = types[newIndex];
+    }
+
+    // Set crate hits required
+    setCrateHits(value) {
+        this.selectedCrateHits = Math.max(1, Math.min(999, value));
+    }
+
+    incrementCrateHits() {
+        this.setCrateHits(this.selectedCrateHits + 5);
+    }
+
+    decrementCrateHits() {
+        this.setCrateHits(this.selectedCrateHits - 5);
     }
 
     // Set level name
@@ -279,20 +392,46 @@ export class EditorSystem {
         return this.allowVerticalMovement;
     }
 
+    // Toggle swarm mode
+    toggleSwarmMode() {
+        this.swarmMode = !this.swarmMode;
+        this.isDirty = true;
+        return this.swarmMode;
+    }
+
+    // Toggle ricochet mode
+    toggleRicochetMode() {
+        this.ricochetMode = !this.ricochetMode;
+        this.isDirty = true;
+        return this.ricochetMode;
+    }
+
+    // Toggle finger up turn around
+    toggleFingerUpTurnAround() {
+        this.fingerUpTurnAround = !this.fingerUpTurnAround;
+        this.isDirty = true;
+        return this.fingerUpTurnAround;
+    }
+
     // Serialize level for storage
     serialize() {
         return {
+            version: 2,  // Version 2: 5-lane system
             name: this.levelName,
             waves: this.waves.map(wave => ({
                 delay: wave.delay,
                 rings: [...wave.rings],
                 enemies: [...wave.enemies],
                 walls: [...wave.walls],
-                gates: [...wave.gates]
+                gates: [...wave.gates],
+                crates: [...(wave.crates || [])]
             })),
             settings: {
                 chaseMode: this.chaseMode,
-                allowVerticalMovement: this.allowVerticalMovement
+                allowVerticalMovement: this.allowVerticalMovement,
+                swarmMode: this.swarmMode,
+                ricochetMode: this.ricochetMode,
+                fingerUpTurnAround: this.fingerUpTurnAround
             },
             createdAt: Date.now()
         };
@@ -302,18 +441,41 @@ export class EditorSystem {
     deserialize(data) {
         if (!data) return false;
 
+        // Migrate old 3-lane levels (version 1) to 5-lane system (version 2)
+        if (!data.version || data.version === 1) {
+            console.log(`Migrating "${data.name}" from 3-lane to 5-lane system...`);
+
+            // Migrate walls: shift lanes 0→1, 1→2, 2→3 to center them in 5-lane system
+            if (data.waves) {
+                data.waves.forEach(wave => {
+                    if (wave.walls) {
+                        wave.walls = wave.walls.map(w => ({
+                            ...w,
+                            lane: w.lane + 1  // Shift to center lanes
+                        }));
+                    }
+                });
+            }
+
+            data.version = 2;
+        }
+
         this.levelName = data.name || 'Untitled';
         this.waves = data.waves.map(wave => ({
-            delay: wave.delay || 2000,
+            delay: wave.delay !== undefined ? wave.delay : 0,  // Use saved delay or 0 for instant start
             rings: wave.rings || [],
             enemies: wave.enemies || [],
             walls: wave.walls || [],
-            gates: wave.gates || []
+            gates: wave.gates || [],
+            crates: wave.crates || []
         }));
 
         // Load level settings (with defaults for backward compatibility)
         this.chaseMode = data.settings?.chaseMode || false;
         this.allowVerticalMovement = data.settings?.allowVerticalMovement || false;
+        this.swarmMode = data.settings?.swarmMode || false;
+        this.ricochetMode = data.settings?.ricochetMode || false;
+        this.fingerUpTurnAround = data.settings?.fingerUpTurnAround || false;
 
         this.currentWaveIndex = 0;
         this.isDirty = false;
@@ -345,6 +507,15 @@ export class EditorSystem {
         }
 
         return true;
+    }
+
+    // Save level and return data for immediate playback
+    saveAndPlay() {
+        this.saveLevel();
+        return {
+            name: this.levelName,
+            data: this.serialize()
+        };
     }
 
     // Load level from LocalStorage
@@ -379,7 +550,8 @@ export class EditorSystem {
             rings: wave.rings.length,
             enemies: wave.enemies.length,
             walls: wave.walls.length,
-            gates: wave.gates.length
+            gates: wave.gates.length,
+            crates: wave.crates.length
         };
     }
 

@@ -707,4 +707,34 @@ export class AudioManager {
             osc.stop(startTime + 0.1);
         });
     }
+
+    // Victory - triumphant ascending melody
+    playVictory() {
+        if (!this.initialized || this.muted) return;
+
+        const notes = [262, 330, 392, 523, 659, 784]; // C4, E4, G4, C5, E5, G5
+        const duration = 0.15;
+        const vol = this.masterVolume * 0.5;
+
+        notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const filter = this.createSoftFilter();
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+            const startTime = this.ctx.currentTime + i * 0.1;
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(vol, startTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+        });
+    }
 }

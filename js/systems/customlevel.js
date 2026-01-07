@@ -10,6 +10,8 @@ import { CONFIG } from '../utils/config.js';
 import { Ring } from '../entities/ring.js';
 import { Enemy } from '../entities/enemy.js';
 import { Wall } from '../entities/wall.js';
+import { SwarmBoss } from '../entities/swarmboss.js';
+import { PowerupCrate } from '../entities/powerupcrate.js';
 import { EditorSystem } from './editor.js';
 
 export class CustomLevelManager {
@@ -160,12 +162,25 @@ export class CustomLevelManager {
         if (wave.walls) {
             for (const wallDef of wave.walls) {
                 const spawnDelay = ((wallDef.y || 0) / scrollSpeed) * 1000;
-                const laneWidth = gameWidth / 3;
+                const laneWidth = gameWidth / 5;
                 this.pendingSpawns.push({
                     type: 'wall',
                     spawnTime: currentTime + spawnDelay,
                     def: wallDef,
                     x: laneWidth * wallDef.lane + laneWidth / 2
+                });
+            }
+        }
+
+        // Queue crates for spawning
+        if (wave.crates) {
+            for (const crateDef of wave.crates) {
+                const spawnDelay = ((crateDef.y || 0) / scrollSpeed) * 1000;
+                this.pendingSpawns.push({
+                    type: 'crate',
+                    spawnTime: currentTime + spawnDelay,
+                    def: crateDef,
+                    x: crateDef.x * gameWidth  // Normalized X to actual X
                 });
             }
         }
@@ -197,15 +212,38 @@ export class CustomLevelManager {
                     break;
                 }
                 case 'enemy': {
-                    const enemy = new Enemy(spawn.x, -50, spawn.def.type);
+                    let enemy;
+                    if (spawn.def.type === 'SWARM_BOSS') {
+                        const health = spawn.def.health || 100;  // Use custom health or default to 100
+                        enemy = new SwarmBoss(spawn.x, -50, health, false);
+                    } else {
+                        enemy = new Enemy(spawn.x, -50, spawn.def.type);
+                    }
                     enemies.push(enemy);
                     this.waveEnemies.push(enemy);
                     break;
                 }
                 case 'wall': {
-                    const wall = new Wall(spawn.x, -50, spawn.def.lane, spawn.def.type || 'SOLID');
+                    const wall = new Wall(
+                        spawn.x,
+                        -50,
+                        spawn.def.lane,
+                        spawn.def.type || 'SOLID',
+                        spawn.def.value || null,  // hitsRequired for DESTRUCTIBLE/HIT_COUNTER_PUSH
+                        spawn.def.width || 1.0,   // widthMultiplier (0.5 = half, 1.0 = full)
+                        5                         // laneCount = 5 for custom levels
+                    );
                     walls.push(wall);
                     this.waveWalls.push(wall);
+                    break;
+                }
+                case 'crate': {
+                    const crate = new PowerupCrate(
+                        spawn.x,
+                        spawn.def.type,
+                        spawn.def.hits || 15
+                    );
+                    walls.push(crate);  // Add to walls array (they're both obstacles)
                     break;
                 }
             }

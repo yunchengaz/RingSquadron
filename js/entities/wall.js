@@ -140,16 +140,17 @@ export const WALL_TYPES = {
 };
 
 export class Wall {
-    constructor(x, y, lane, type = 'SOLID', hitsRequired = null, widthMultiplier = 1.0) {
+    constructor(x, y, lane, type = 'SOLID', hitsRequired = null, widthMultiplier = 1.0, laneCount = 3) {
         this.x = x;
         this.y = y;
-        this.lane = lane; // 0 = left, 1 = center, 2 = right
+        this.lane = lane; // 0 = left, 1 = center, 2 = right (or 0-4 for 5-lane custom levels)
         this.active = true;
         this.type = type;
         this.typeData = WALL_TYPES[type] || WALL_TYPES.SOLID;
+        this.laneCount = laneCount; // Number of lanes (3 for normal modes, 5 for custom editor)
 
         // Dimensions - span most of the lane width
-        const laneWidth = CONFIG.GAME_WIDTH / 3;
+        const laneWidth = CONFIG.GAME_WIDTH / laneCount;
         this.width = (laneWidth - 20) * widthMultiplier; // Leave small gaps between lanes, apply multiplier
         this.height = 30;
 
@@ -460,21 +461,23 @@ export class Wall {
 
     /**
      * Get the center X position for a given lane
-     * @param {number} lane - Lane index (0, 1, or 2)
+     * @param {number} lane - Lane index
+     * @param {number} laneCount - Total number of lanes (default 3)
      * @returns {number} Center X position
      */
-    static getLaneX(lane) {
-        const laneWidth = CONFIG.GAME_WIDTH / 3;
+    static getLaneX(lane, laneCount = 3) {
+        const laneWidth = CONFIG.GAME_WIDTH / laneCount;
         return laneWidth * lane + laneWidth / 2;
     }
 
     /**
      * Get the lane index for a given X position
      * @param {number} x - X position
-     * @returns {number} Lane index (0, 1, or 2)
+     * @param {number} laneCount - Total number of lanes (default 3)
+     * @returns {number} Lane index
      */
-    static getLaneFromX(x) {
-        const laneWidth = CONFIG.GAME_WIDTH / 3;
+    static getLaneFromX(x, laneCount = 3) {
+        const laneWidth = CONFIG.GAME_WIDTH / laneCount;
         return Math.floor(x / laneWidth);
     }
 
