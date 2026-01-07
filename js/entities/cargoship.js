@@ -103,14 +103,23 @@ export class CargoShip {
                 this.x += this.velocityX * boostedDtNormalized;
                 this.y += this.velocityY * boostedDtNormalized;
                 
-                // Keep within screen bounds horizontally
+                // Keep within screen bounds
                 const halfWidth = this.width / 2;
+                const halfHeight = this.height / 2;
+                
+                // Horizontal bounds - bounce off left/right edges
                 if (this.x < halfWidth) {
                     this.x = halfWidth;
                     this.velocityX = Math.abs(this.velocityX) * 0.5;  // Bounce off wall
                 } else if (this.x > CONFIG.GAME_WIDTH - halfWidth) {
                     this.x = CONFIG.GAME_WIDTH - halfWidth;
                     this.velocityX = -Math.abs(this.velocityX) * 0.5;  // Bounce off wall
+                }
+                
+                // Top bound - bounce off top edge (can't go above screen)
+                if (this.y < halfHeight) {
+                    this.y = halfHeight;
+                    this.velocityY = Math.abs(this.velocityY) * 0.3;  // Bounce down with damping
                 }
                 break;
         }
@@ -166,22 +175,22 @@ export class CargoShip {
 
         // === LINEAR IMPULSE (for juggling) ===
         // Upward force - bullets push the ship up
-        const upwardForce = -1.8;  // Negative = upward in screen coords
+        const upwardForce = -1.0;  // Negative = upward in screen coords (reduced from -1.8)
         this.velocityY += upwardForce;
         
         // Cap upward velocity (can't push too high)
-        const maxUpwardVelocity = -6;
+        const maxUpwardVelocity = -4;
         if (this.velocityY < maxUpwardVelocity) {
             this.velocityY = maxUpwardVelocity;
         }
 
         // Horizontal push based on where the bullet hit
         // Hitting left side pushes right, hitting right side pushes left
-        const horizontalPush = -offsetX * 0.08;  // Scale factor for horizontal push
+        const horizontalPush = -offsetX * 0.05;  // Scale factor for horizontal push (reduced from 0.08)
         this.velocityX += horizontalPush;
         
         // Cap horizontal velocity
-        const maxHorizontalVelocity = 4;
+        const maxHorizontalVelocity = 3;
         if (this.velocityX > maxHorizontalVelocity) {
             this.velocityX = maxHorizontalVelocity;
         } else if (this.velocityX < -maxHorizontalVelocity) {
