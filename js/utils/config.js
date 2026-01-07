@@ -219,12 +219,13 @@ export const CONFIG = {
         waveDuration: 12000,            // 12 seconds per wave
 
         // Red Box
-        redBoxStartY: 680,              // Start barely visible (20px at bottom)
+        redBoxStartY: 665,              // Start at bottom 5% of screen (700 * 0.95 = 665)
         redBoxSafetyTime: 5000,         // 5s grace period
         redBoxBaseGrowthRate: 0.08,     // Base pixels/frame
         redBoxWaveScaling: 0.015,       // +1.5% speed per wave
-        redBoxMaxHeight: 280,           // 40% of screen
-        redBoxMinY: 420,                // Don't go above this (700-280=420)
+        redBoxMaxHeight: 630,           // Can go up to 90% of screen (700 - 70 = 630)
+        redBoxMinY: 70,                 // Upper limit: 10% from top (90% of screen)
+        redBoxMaxY: 665,                // Lower limit: bottom 5% of screen
         redBoxDamageSlowdown: 0.5,      // 50% speed when hit
         redBoxSlowDuration: 2000,       // 2s slowdown
         redBoxFlashDuration: 300,       // Visual flash
@@ -283,15 +284,27 @@ export const CONFIG = {
     // ========================================
     CHASE_SWARM_MODE: {
         // Red Box (from Chase mode)
-        redBoxStartY: 680,               // Start near bottom (680 = 20px visible initially)
+        redBoxStartY: 665,               // Start at bottom 5% of screen (700 * 0.95 = 665)
         redBoxSafetyTime: 5000,          // 5s grace period
         redBoxBaseGrowthRate: 0.08,
         redBoxWaveScaling: 0.015,
-        redBoxMaxHeight: 700,            // Can cover entire screen
-        redBoxMinY: 0,                   // Can reach top of screen
+        redBoxMaxHeight: 630,            // Can go up to 90% of screen (700 - 70 = 630)
+        redBoxMinY: 70,                  // Upper limit: 10% from top (90% of screen)
+        redBoxMaxY: 665,                 // Lower limit: bottom 5% of screen
         redBoxPushAmount: 25,            // Reduced 50% for less player push
 
-        // Red Box speed increase from enemies
+        // Poise Gauge System
+        poiseMax: 100,                   // Maximum poise value (both positive and negative)
+        poiseDecayRate: 0.02,            // Natural decay towards center per frame
+        poiseEnemyImpact: -5,            // Regular enemy reaching bottom
+        poiseBossImpact: -25,            // Boss/elite enemy reaching bottom
+        poiseShootImpact: 8,             // Player bullet hitting red box
+        poiseNegativeSpeedMult: 2.5,     // Red box moves 2.5x faster when negative
+        poisePositiveSpeedMult: 0.3,     // Red box moves 0.3x slower when positive
+        poiseMaxNegativeJump: 100,       // Pixels to jump up when reaching full negative
+        poiseMaxPositiveKnockdown: 80,   // Pixels to knock down when reaching full positive
+
+        // Red Box speed increase from enemies (legacy - now handled by poise)
         enemySpeedBoost: 0.02,           // +2% speed per enemy that reaches box
         bossSpeedBoost: 0.1,             // +10% speed per boss that reaches box
 

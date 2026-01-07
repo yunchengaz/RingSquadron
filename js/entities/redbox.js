@@ -27,6 +27,7 @@ export class RedBox {
         this.baseGrowthRate = cfg.redBoxBaseGrowthRate;
         this.maxHeight = cfg.redBoxMaxHeight;
         this.minY = cfg.redBoxMinY;
+        this.maxY = cfg.redBoxMaxY || gameHeight;  // Lower limit (bottom of screen)
 
         // Store config key for update method
         this.configKey = configKey;
@@ -36,6 +37,12 @@ export class RedBox {
         this.slowdownMultiplier = 1.0;
         this.slowdownTimer = 0;
         this.flashTimer = 0;
+
+        // Poise Gauge System (only for CHASE_SWARM_MODE)
+        this.poiseValue = 0;  // -100 to +100, 0 is center
+        this.poiseMax = cfg.poiseMax || 100;
+        this.poiseJustTriggeredNegative = false;  // Prevent repeated triggers
+        this.poiseJustTriggeredPositive = false;
 
         // State
         this.active = true;
@@ -80,9 +87,55 @@ export class RedBox {
             return;
         }
 
+        // Natural poise decay towards center (only for Chase Swarm mode)
+        if (cfg.poiseDecayRate && this.poiseValue !== 0) {
+            const decayAmount = cfg.poiseDecayRate * dt;
+            if (this.poiseValue > 0) {
+                this.poiseValue = Math.max(0, this.poiseValue - decayAmount);
+            } else {
+                this.poiseValue = Math.min(0, this.poiseValue + decayAmount);
+            }
+        }
+
+        // Calculate poise-based speed multiplier
+        let poiseSpeedMult = 1.0;
+        if (cfg.poiseMax) {
+            const normalizedPoise = this.poiseValue / this.poiseMax;  // -1 to +1
+            if (normalizedPoise < 0) {
+                // Negative: lerp from 1.0 to negativeSpeedMult
+                const negMult = cfg.poiseNegativeSpeedMult || 2.5;
+                poiseSpeedMult = 1.0 + (-normalizedPoise) * (negMult - 1.0);
+            } else if (normalizedPoise > 0) {
+                // Positive: lerp from 1.0 to positiveSpeedMult
+                const posMult = cfg.poisePositiveSpeedMult || 0.3;
+                poiseSpeedMult = 1.0 - normalizedPoise * (1.0 - posMult);
+            }
+
+            // Check for reaching extremes
+            if (this.poiseValue <= -this.poiseMax && !this.poiseJustTriggeredNegative) {
+                // Full negative: jump up by large margin
+                const jumpAmount = cfg.poiseMaxNegativeJump || 100;
+                this.y -= jumpAmount;
+                this.poiseJustTriggeredNegative = true;
+                this.flashTimer = 500;  // Long flash for dramatic effect
+            } else if (this.poiseValue > -this.poiseMax * 0.9) {
+                this.poiseJustTriggeredNegative = false;
+            }
+
+            if (this.poiseValue >= this.poiseMax && !this.poiseJustTriggeredPositive) {
+                // Full positive: knock down
+                const knockdownAmount = cfg.poiseMaxPositiveKnockdown || 80;
+                this.y += knockdownAmount;
+                this.poiseJustTriggeredPositive = true;
+                this.flashTimer = 500;  // Long flash for dramatic effect
+            } else if (this.poiseValue < this.poiseMax * 0.9) {
+                this.poiseJustTriggeredPositive = false;
+            }
+        }
+
         // Calculate growth rate with wave scaling and enemy speed boost
         const waveMultiplier = 1 + (waveNumber * cfg.redBoxWaveScaling);
-        const effectiveGrowthRate = this.baseGrowthRate * waveMultiplier * this.slowdownMultiplier * enemySpeedBoost;
+        const effectiveGrowthRate = this.baseGrowthRate * waveMultiplier * this.slowdownMultiplier * enemySpeedBoost * poiseSpeedMult;
 
         // Calculate shrink rate from player boost (negative growth = shrinking)
         // Each boost level adds 0.15 pixels/frame of shrinkage
@@ -95,15 +148,20 @@ export class RedBox {
         this.y -= netRate * dt;
 
         // Apply limits
-        // Min Y is the configured minimum (can reach top for full coverage)
+        // Min Y is the configured minimum (can reach up to 90% screen coverage)
         if (this.y < this.minY) {
             this.y = this.minY;
         }
 
-        // Max Y is the bottom of screen (can be pushed all the way down)
-        if (this.y > this.gameHeight) {
-            this.y = this.gameHeight;
+        // Max Y is the lower limit (bottom 5% of screen)
+        if (this.y > this.maxY) {
+            this.y = this.maxY;
         }
+    }
+
+    // Add poise value (negative for enemies reaching bottom, positive for shooting red box)
+    addPoise(amount) {
+        this.poiseValue = Math.max(-this.poiseMax, Math.min(this.poiseMax, this.poiseValue + amount));
     }
 
     takeDamage(amount) {
@@ -155,6 +213,7 @@ export class RedBox {
 
     draw(renderer) {
         const ctx = renderer.ctx;
+        const cfg = CONFIG[this.configKey];
 
         // Red box fills from bottom of screen upward
         // this.y is the TOP edge, it fills down to gameHeight
@@ -214,5 +273,141 @@ export class RedBox {
             ctx.textAlign = 'center';
             ctx.fillText(`SAFE: ${secondsLeft}s`, this.gameWidth / 2, topY - 20);
         }
+
+        // Draw Poise Gauge (only for Chase Swarm mode with poise system)
+        if (cfg.poiseMax) {
+            this.drawPoiseGauge(ctx);
+        }
+    }
+
+    drawPoiseGauge(ctx) {
+        const cfg = CONFIG[this.configKey];
+        const gaugeWidth = this.gameWidth - 40;
+        const gaugeHeight = 16;
+        const gaugeX = 20;
+        const gaugeY = this.gameHeight - 28;  // At the very bottom of screen
+
+        // Semi-transparent background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(gaugeX - 5, gaugeY - 5, gaugeWidth + 10, gaugeHeight + 10);
+
+        // Gradient background for negative (left) and positive (right) sides
+        const gradient = ctx.createLinearGradient(gaugeX, 0, gaugeX + gaugeWidth, 0);
+        gradient.addColorStop(0, '#880000');      // Deep red (negative extreme)
+        gradient.addColorStop(0.35, '#552222');   // Dark red
+        gradient.addColorStop(0.5, '#333333');    // Neutral center (dark gray)
+        gradient.addColorStop(0.65, '#225522');   // Dark green
+        gradient.addColorStop(1, '#008800');      // Deep green (positive extreme)
+        ctx.fillStyle = gradient;
+        ctx.fillRect(gaugeX, gaugeY, gaugeWidth, gaugeHeight);
+
+        // Draw center line (neutral point)
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(gaugeX + gaugeWidth / 2, gaugeY - 2);
+        ctx.lineTo(gaugeX + gaugeWidth / 2, gaugeY + gaugeHeight + 2);
+        ctx.stroke();
+
+        // Draw tick marks
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < 10; i++) {
+            if (i === 5) continue;  // Skip center
+            const tickX = gaugeX + (gaugeWidth * i / 10);
+            ctx.beginPath();
+            ctx.moveTo(tickX, gaugeY);
+            ctx.lineTo(tickX, gaugeY + gaugeHeight);
+            ctx.stroke();
+        }
+
+        // Calculate marker position
+        // poiseValue: -poiseMax to +poiseMax
+        // Map to: 0 to gaugeWidth
+        const normalizedPoise = (this.poiseValue + this.poiseMax) / (this.poiseMax * 2);
+        const markerX = gaugeX + normalizedPoise * gaugeWidth;
+
+        // Marker color based on poise state
+        let markerColor;
+        if (this.poiseValue < -this.poiseMax * 0.5) {
+            markerColor = '#ff4444';  // Danger red when very negative
+        } else if (this.poiseValue > this.poiseMax * 0.5) {
+            markerColor = '#44ff44';  // Good green when very positive
+        } else {
+            markerColor = '#ffffff';  // Neutral white
+        }
+
+        // Pulsing effect when at extremes
+        let markerAlpha = 1.0;
+        if (Math.abs(this.poiseValue) > this.poiseMax * 0.8) {
+            markerAlpha = 0.7 + Math.sin(this.playTime / 100) * 0.3;
+        }
+        ctx.globalAlpha = markerAlpha;
+
+        // Draw marker (triangle pointer)
+        ctx.fillStyle = markerColor;
+        ctx.beginPath();
+        ctx.moveTo(markerX, gaugeY - 4);
+        ctx.lineTo(markerX - 6, gaugeY - 10);
+        ctx.lineTo(markerX + 6, gaugeY - 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw marker line through gauge
+        ctx.strokeStyle = markerColor;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(markerX, gaugeY);
+        ctx.lineTo(markerX, gaugeY + gaugeHeight);
+        ctx.stroke();
+
+        // Draw bottom pointer
+        ctx.fillStyle = markerColor;
+        ctx.beginPath();
+        ctx.moveTo(markerX, gaugeY + gaugeHeight + 4);
+        ctx.lineTo(markerX - 6, gaugeY + gaugeHeight + 10);
+        ctx.lineTo(markerX + 6, gaugeY + gaugeHeight + 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.globalAlpha = 1.0;
+
+        // Draw labels
+        ctx.font = `bold 9px ${CONFIG.FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Negative label (DANGER)
+        ctx.fillStyle = '#ff6666';
+        ctx.fillText('DANGER', gaugeX + 35, gaugeY + gaugeHeight / 2);
+
+        // Positive label (SAFE)
+        ctx.fillStyle = '#66ff66';
+        ctx.fillText('SAFE', gaugeX + gaugeWidth - 30, gaugeY + gaugeHeight / 2);
+
+        // Speed indicator text
+        ctx.font = `bold 8px ${CONFIG.FONT_FAMILY}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        let speedText = '';
+        if (this.poiseValue < -this.poiseMax * 0.5) {
+            speedText = '⚠ FAST';
+            ctx.fillStyle = '#ff4444';
+        } else if (this.poiseValue > this.poiseMax * 0.5) {
+            speedText = '✓ SLOW';
+            ctx.fillStyle = '#44ff44';
+        }
+        if (speedText) {
+            ctx.fillText(speedText, gaugeX + gaugeWidth / 2 - 18, gaugeY - 18);
+        }
+
+        // Reset text alignment
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Draw border
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(gaugeX, gaugeY, gaugeWidth, gaugeHeight);
     }
 }

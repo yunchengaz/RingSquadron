@@ -1141,6 +1141,8 @@ class Game {
                 if (this.redBox && enemy.y >= this.redBox.y) {
                     const cfg = CONFIG.CHASE_SWARM_MODE;
                     this.redBoxEnemySpeedBoost += cfg.enemySpeedBoost;
+                    // Add negative poise for enemy reaching bottom
+                    this.redBox.addPoise(cfg.poiseEnemyImpact || -5);
                     enemy.active = false;
                 }
 
@@ -1154,13 +1156,16 @@ class Game {
                 const boss = this.swarmBosses[i];
                 boss.update(dt, this.player.x, this.player.y);
 
-                // Check if boss reached red box - INSTANT GAME OVER
+                // Check if boss reached red box - Large negative poise impact
                 if (this.redBox && boss.y >= this.redBox.y) {
-                    this.redBox.makeUnstoppable();
+                    const cfg = CONFIG.CHASE_SWARM_MODE;
+                    // Add large negative poise for boss/elite reaching bottom
+                    this.redBox.addPoise(cfg.poiseBossImpact || -25);
+                    this.redBoxEnemySpeedBoost += cfg.bossSpeedBoost;
                     this.audio.playExplosion();
                     this.particles.explosion(boss.x, boss.y, 5);
-                    this.screenFx.shake(30, 1.0);
-                    this.screenFx.flash('#ff0000', 0.8, 0.1);
+                    this.screenFx.shake(20, 0.7);
+                    this.screenFx.flash('#ff0000', 0.5, 0.1);
                     boss.active = false;
                 }
 
@@ -2438,7 +2443,7 @@ class Game {
                 }
             }
 
-            // Downward-firing bullets vs red box (push it down)
+            // Downward-firing bullets vs red box (push it down + add positive poise)
             for (let i = this.playerBullets.length - 1; i >= 0; i--) {
                 const bullet = this.playerBullets[i];
                 if (!bullet.active || !bullet.firingDown) continue;
@@ -2452,9 +2457,11 @@ class Game {
                     // Can't push if unstoppable
                     if (!this.redBox.unstoppable) {
                         const cfg = CONFIG.CHASE_SWARM_MODE;
+                        // Add positive poise for shooting the red box
+                        this.redBox.addPoise(cfg.poiseShootImpact || 8);
                         this.redBox.y += cfg.redBoxPushAmount;
-                        if (this.redBox.y > CONFIG.GAME_HEIGHT - 50) {
-                            this.redBox.y = CONFIG.GAME_HEIGHT - 50;
+                        if (this.redBox.y > cfg.redBoxMaxY) {
+                            this.redBox.y = cfg.redBoxMaxY;
                         }
                         this.particles.spark(bullet.x, bullet.y, '#44ff44');
                     } else {
@@ -2480,18 +2487,19 @@ class Game {
 
                 if (ship.checkRedBoxCollision(this.redBox)) {
                     if (!this.redBox.unstoppable) {
+                        const cfg = CONFIG.CHASE_SWARM_MODE;
                         if (ship.engineDestroyed) {
-                            // Engine destroyed: push red box down
-                            const cfg = CONFIG.CHASE_SWARM_MODE;
+                            // Engine destroyed: push red box down + add positive poise
                             this.redBox.y += cfg.redBoxPushAmount;
-                            if (this.redBox.y > CONFIG.GAME_HEIGHT - 50) {
-                                this.redBox.y = CONFIG.GAME_HEIGHT - 50;
+                            this.redBox.addPoise((cfg.poiseShootImpact || 8) * 2);  // 2x poise bonus
+                            if (this.redBox.y > cfg.redBoxMaxY) {
+                                this.redBox.y = cfg.redBoxMaxY;
                             }
                             this.particles.explosion(ship.x, ship.y, 2);
                         } else {
-                            // Engine intact: speed up red box
-                            const cfg = CONFIG.CHASE_SWARM_MODE;
+                            // Engine intact: speed up red box + add negative poise
                             this.redBoxEnemySpeedBoost += cfg.enemySpeedBoost * 2;  // 2x boost for cargo ships
+                            this.redBox.addPoise((cfg.poiseEnemyImpact || -5) * 3);  // 3x negative poise
                         }
                     }
                     ship.active = false;
