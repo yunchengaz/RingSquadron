@@ -302,7 +302,7 @@ export const CONFIG = {
         poiseNegativeSpeedMult: 2.5,     // Red box moves 2.5x faster when negative
         poisePositiveSpeedMult: 0.5,     // Red box moves 0.5x speed when positive (was 0.3)
         poiseMaxNegativeJump: 100,       // Pixels to jump up when reaching full negative
-        poiseMaxPositiveKnockdown: 80,   // Pixels to knock down when reaching full positive
+        poiseMaxPositiveKnockdown: 120,  // Pixels to knock down when reaching full positive (increased)
 
         // Red Box speed increase from enemies (legacy - now handled by poise)
         enemySpeedBoost: 0.02,           // +2% speed per enemy that reaches box

@@ -117,18 +117,21 @@ export class RedBox {
                 const jumpAmount = cfg.poiseMaxNegativeJump || 100;
                 this.y -= jumpAmount;
                 this.poiseJustTriggeredNegative = true;
+                this.poiseValue = 0;  // Reset gauge to center after triggering
                 this.flashTimer = 500;  // Long flash for dramatic effect
-            } else if (this.poiseValue > -this.poiseMax * 0.9) {
+            } else if (this.poiseValue > -this.poiseMax * 0.5) {
                 this.poiseJustTriggeredNegative = false;
             }
 
             if (this.poiseValue >= this.poiseMax && !this.poiseJustTriggeredPositive) {
-                // Full positive: knock down
-                const knockdownAmount = cfg.poiseMaxPositiveKnockdown || 80;
+                // Full positive: knock down the red block!
+                const knockdownAmount = cfg.poiseMaxPositiveKnockdown || 120;
                 this.y += knockdownAmount;
                 this.poiseJustTriggeredPositive = true;
-                this.flashTimer = 500;  // Long flash for dramatic effect
-            } else if (this.poiseValue < this.poiseMax * 0.9) {
+                this.poiseValue = 0;  // Reset gauge to center after triggering
+                this.flashTimer = 600;  // Longer flash for positive effect (green)
+                this.lastKnockdownTime = this.playTime;  // Track for visual effect
+            } else if (this.poiseValue < this.poiseMax * 0.5) {
                 this.poiseJustTriggeredPositive = false;
             }
         }
@@ -221,11 +224,13 @@ export class RedBox {
         const bottomY = this.gameHeight;
         const height = bottomY - topY;
 
-        // Flash white when hit, or black/red if unstoppable
+        // Flash color based on state
         const isFlashing = this.flashTimer > 0;
         let baseColor;
         if (this.unstoppable) {
             baseColor = isFlashing ? '#ff0000' : '#660000';  // Dark red when unstoppable
+        } else if (isFlashing && this.lastKnockdownTime && this.playTime - this.lastKnockdownTime < 700) {
+            baseColor = '#44ff44';  // Green flash when knocked down by positive poise
         } else {
             baseColor = isFlashing ? '#ffffff' : '#cc0000';
         }
