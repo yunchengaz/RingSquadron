@@ -454,7 +454,7 @@ export class Renderer {
 
         // Version number
         this.ctx.globalAlpha = 0.6;
-        this.drawText('v2.2', 10, this.canvas.height - 20, '#888888', 8);
+        this.drawText('v2.3', 10, this.canvas.height - 20, '#888888', 8);
         this.ctx.globalAlpha = 1;
     }
 
