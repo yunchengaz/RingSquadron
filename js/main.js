@@ -3222,7 +3222,11 @@ class Game {
     handleVictory() {
         this.victoryAchieved = true; // Set victory flag to prevent death
         this.state = 'gameover'; // Reuse gameover state but show victory
-        this.audio.playVictory();
+        if (this.audio.playVictory) {
+            this.audio.playVictory();
+        } else {
+            this.audio.playWaveStart(); // Fallback to wave start sound
+        }
         this.screenFx.flash('#00ff00', 1.0);
         this.haptics.heavy();
 
