@@ -2443,7 +2443,7 @@ class Game {
                 }
             }
 
-            // Downward-firing bullets vs red box (push it down + add positive poise)
+            // Downward-firing bullets vs red box (primarily affects poise gauge)
             for (let i = this.playerBullets.length - 1; i >= 0; i--) {
                 const bullet = this.playerBullets[i];
                 if (!bullet.active || !bullet.firingDown) continue;
@@ -2454,12 +2454,13 @@ class Game {
                 if (CollisionSystem.checkAABB(bulletBounds, redBoxBounds)) {
                     bullet.active = false;
 
-                    // Can't push if unstoppable
+                    // Can't affect if unstoppable
                     if (!this.redBox.unstoppable) {
                         const cfg = CONFIG.CHASE_SWARM_MODE;
-                        // Add positive poise for shooting the red box
-                        this.redBox.addPoise(cfg.poiseShootImpact || 8);
-                        this.redBox.y += cfg.redBoxPushAmount;
+                        // Add positive poise for shooting the red box (main effect)
+                        this.redBox.addPoise(cfg.poiseShootImpact || 2);
+                        // Minimal direct push (only 2 pixels per hit instead of 25)
+                        this.redBox.y += 2;
                         if (this.redBox.y > cfg.redBoxMaxY) {
                             this.redBox.y = cfg.redBoxMaxY;
                         }
@@ -2491,7 +2492,7 @@ class Game {
                         if (ship.engineDestroyed) {
                             // Engine destroyed: push red box down + add positive poise
                             this.redBox.y += cfg.redBoxPushAmount;
-                            this.redBox.addPoise((cfg.poiseShootImpact || 8) * 2);  // 2x poise bonus
+                            this.redBox.addPoise((cfg.poiseShootImpact || 2) * 5);  // 5x poise bonus for cargo ship
                             if (this.redBox.y > cfg.redBoxMaxY) {
                                 this.redBox.y = cfg.redBoxMaxY;
                             }
@@ -2499,7 +2500,7 @@ class Game {
                         } else {
                             // Engine intact: speed up red box + add negative poise
                             this.redBoxEnemySpeedBoost += cfg.enemySpeedBoost * 2;  // 2x boost for cargo ships
-                            this.redBox.addPoise((cfg.poiseEnemyImpact || -5) * 3);  // 3x negative poise
+                            this.redBox.addPoise((cfg.poiseEnemyImpact || -1.5) * 5);  // 5x negative poise for cargo ship
                         }
                     }
                     ship.active = false;

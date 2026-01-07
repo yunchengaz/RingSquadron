@@ -295,10 +295,10 @@ export const CONFIG = {
 
         // Poise Gauge System
         poiseMax: 100,                   // Maximum poise value (both positive and negative)
-        poiseDecayRate: 0.02,            // Natural decay towards center per frame
-        poiseEnemyImpact: -5,            // Regular enemy reaching bottom
-        poiseBossImpact: -25,            // Boss/elite enemy reaching bottom
-        poiseShootImpact: 8,             // Player bullet hitting red box
+        poiseDecayRate: 0.008,           // Slower natural decay towards center per frame
+        poiseEnemyImpact: -1.5,          // Regular enemy reaching bottom (reduced from -5)
+        poiseBossImpact: -8,             // Boss/elite enemy reaching bottom (reduced from -25)
+        poiseShootImpact: 2,             // Player bullet hitting red box (reduced from 8)
         poiseNegativeSpeedMult: 2.5,     // Red box moves 2.5x faster when negative
         poisePositiveSpeedMult: 0.3,     // Red box moves 0.3x slower when positive
         poiseMaxNegativeJump: 100,       // Pixels to jump up when reaching full negative
