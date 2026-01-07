@@ -286,7 +286,7 @@ export const CONFIG = {
         // Red Box (from Chase mode)
         redBoxStartY: 665,               // Start at bottom 5% of screen (700 * 0.95 = 665)
         redBoxSafetyTime: 5000,          // 5s grace period
-        redBoxBaseGrowthRate: 0.08,
+        redBoxBaseGrowthRate: 0.18,      // Faster base growth (was 0.08)
         redBoxWaveScaling: 0.015,
         redBoxMaxHeight: 630,            // Can go up to 90% of screen (700 - 70 = 630)
         redBoxMinY: 70,                  // Upper limit: 10% from top (90% of screen)
@@ -300,7 +300,7 @@ export const CONFIG = {
         poiseBossImpact: -8,             // Boss/elite enemy reaching bottom (reduced from -25)
         poiseShootImpact: 2,             // Player bullet hitting red box (reduced from 8)
         poiseNegativeSpeedMult: 2.5,     // Red box moves 2.5x faster when negative
-        poisePositiveSpeedMult: 0.3,     // Red box moves 0.3x slower when positive
+        poisePositiveSpeedMult: 0.5,     // Red box moves 0.5x speed when positive (was 0.3)
         poiseMaxNegativeJump: 100,       // Pixels to jump up when reaching full negative
         poiseMaxPositiveKnockdown: 80,   // Pixels to knock down when reaching full positive
 

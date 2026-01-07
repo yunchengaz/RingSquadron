@@ -2443,7 +2443,7 @@ class Game {
                 }
             }
 
-            // Downward-firing bullets vs red box (primarily affects poise gauge)
+            // Downward-firing bullets vs red box (only affects poise gauge, no direct push)
             for (let i = this.playerBullets.length - 1; i >= 0; i--) {
                 const bullet = this.playerBullets[i];
                 if (!bullet.active || !bullet.firingDown) continue;
@@ -2457,13 +2457,8 @@ class Game {
                     // Can't affect if unstoppable
                     if (!this.redBox.unstoppable) {
                         const cfg = CONFIG.CHASE_SWARM_MODE;
-                        // Add positive poise for shooting the red box (main effect)
+                        // Add positive poise for shooting the red box (only effect - no direct push)
                         this.redBox.addPoise(cfg.poiseShootImpact || 2);
-                        // Minimal direct push (only 2 pixels per hit instead of 25)
-                        this.redBox.y += 2;
-                        if (this.redBox.y > cfg.redBoxMaxY) {
-                            this.redBox.y = cfg.redBoxMaxY;
-                        }
                         this.particles.spark(bullet.x, bullet.y, '#44ff44');
                     } else {
                         // Bullets just disappear, no effect
