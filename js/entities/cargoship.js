@@ -43,6 +43,13 @@ export class CargoShip {
         this.angularVelocity = 0;  // Rotation speed (rad/frame)
         this.angularDamping = 0.98;  // Slow down rotation over time
 
+        // Linear physics (for juggling when destroyed)
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.gravity = 0.15;  // Downward acceleration per frame
+        this.maxFallSpeed = 8;  // Terminal velocity
+        this.horizontalDrag = 0.96;  // Slow down horizontal movement
+
         // State
         this.active = true;
     }
@@ -80,8 +87,31 @@ export class CargoShip {
                 break;
 
             case 'destroyed':
-                // Drift down toward red box faster, reacting to player boost
-                this.y += this.driftSpeed * this.fallSpeedMultiplier * boostedDtNormalized;
+                // Physics-based movement for juggling
+                // Apply gravity
+                this.velocityY += this.gravity * dt;
+                
+                // Cap fall speed
+                if (this.velocityY > this.maxFallSpeed) {
+                    this.velocityY = this.maxFallSpeed;
+                }
+                
+                // Apply horizontal drag
+                this.velocityX *= this.horizontalDrag;
+                
+                // Update position based on velocity
+                this.x += this.velocityX * boostedDtNormalized;
+                this.y += this.velocityY * boostedDtNormalized;
+                
+                // Keep within screen bounds horizontally
+                const halfWidth = this.width / 2;
+                if (this.x < halfWidth) {
+                    this.x = halfWidth;
+                    this.velocityX = Math.abs(this.velocityX) * 0.5;  // Bounce off wall
+                } else if (this.x > CONFIG.GAME_WIDTH - halfWidth) {
+                    this.x = CONFIG.GAME_WIDTH - halfWidth;
+                    this.velocityX = -Math.abs(this.velocityX) * 0.5;  // Bounce off wall
+                }
                 break;
         }
 
@@ -101,26 +131,29 @@ export class CargoShip {
             this.engineHealth = 0;
             this.engineDestroyed = true;
             this.state = 'destroyed';
+            
+            // Initialize physics with current drift converted to velocity
+            this.velocityY = this.driftSpeed * this.fallSpeedMultiplier;
+            this.velocityX = 0;
+            
             return true;  // Engine destroyed
         }
 
         return false;
     }
 
-    // Apply rotational impulse from bullet hit (only when destroyed)
-    applyHitImpulse(hitX, hitY) {
+    // Apply impulse from bullet hit (only when destroyed)
+    // Enables juggling by applying upward force and rotation
+    applyHitImpulse(hitX, hitY, bulletDamage = 10) {
         if (!this.engineDestroyed) return;
 
         // Calculate offset from center
         const offsetX = hitX - this.x;
         const offsetY = hitY - this.y;
 
-        // Calculate torque based on perpendicular distance from center
-        // Cross product: torque = offsetX * vy - offsetY * vx (bullet moving down, so vy > 0)
-        // For simplicity, use offsetX as the main contributor (horizontal distance from center)
-        const torque = offsetX * 0.0005;  // Scale factor for rotation intensity (reduced 75% for heavier feel)
-
-        // Add to angular velocity
+        // === ROTATIONAL IMPULSE ===
+        // Calculate torque based on horizontal distance from center
+        const torque = offsetX * 0.0005;  // Scale factor for rotation intensity
         this.angularVelocity += torque;
 
         // Cap max rotation speed
@@ -129,6 +162,30 @@ export class CargoShip {
             this.angularVelocity = maxAngularVelocity;
         } else if (this.angularVelocity < -maxAngularVelocity) {
             this.angularVelocity = -maxAngularVelocity;
+        }
+
+        // === LINEAR IMPULSE (for juggling) ===
+        // Upward force - bullets push the ship up
+        const upwardForce = -1.8;  // Negative = upward in screen coords
+        this.velocityY += upwardForce;
+        
+        // Cap upward velocity (can't push too high)
+        const maxUpwardVelocity = -6;
+        if (this.velocityY < maxUpwardVelocity) {
+            this.velocityY = maxUpwardVelocity;
+        }
+
+        // Horizontal push based on where the bullet hit
+        // Hitting left side pushes right, hitting right side pushes left
+        const horizontalPush = -offsetX * 0.08;  // Scale factor for horizontal push
+        this.velocityX += horizontalPush;
+        
+        // Cap horizontal velocity
+        const maxHorizontalVelocity = 4;
+        if (this.velocityX > maxHorizontalVelocity) {
+            this.velocityX = maxHorizontalVelocity;
+        } else if (this.velocityX < -maxHorizontalVelocity) {
+            this.velocityX = -maxHorizontalVelocity;
         }
     }
 
